@@ -1,0 +1,15 @@
+# ============================================================================
+# dsh-aiquit —— AIQuit「爷不干了」DSH bundle patch
+# ============================================================================
+# 插件的"挂载声明"。DSH 启动时按 bundle 层栈叠加各插件 patch，
+# 本文件把 AIQuit 插件插入 Web profile 的配置树。
+#
+# 安装方式：
+#   dsh plugin --profile web add link:E:/DeepseekHarness/AIQuit
+# 或发布后：
+#   dsh plugin --profile web add dsh-aiquit
+# ============================================================================
+
+- insert:
+    - id: dsh-aiquit
+      name: dsh-aiquit

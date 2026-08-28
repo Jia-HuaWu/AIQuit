@@ -1,0 +1,26 @@
+{
+  "name": "dsh-aiquit",
+  "version": "1.0.0",
+  "description": "AIQuit「爷不干了」—— DSH 罢工插件：AI 开工前静默评估工作量（1-10），超过罢工阈值即罢工，并从回答拒绝库随机挑一句回复用户",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "aiquit",
+    "strike"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "talking",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}
