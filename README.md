@@ -72,31 +72,38 @@ dsh plugin --profile web add link:E:/DeepseekHarness/AIQuit
 |---|---|
 | 每轮拦截 | `agent/pre-step` waterfall（模型请求之前）：写入拒绝事件后统一返回官方的 `{kind:'reject'}`，主模型零调用 |
 | 工作量评估 | 独立迷你请求（deepseek-chat，max_tokens=16，不带历史），分数返回给程序判定 |
-| 拒绝写入 | 构造与正常轮次一致的完整事件流 `step/start → user/message → assistant/message(拒绝语) → step/end`（携带 turn/step 坐标），UI 正常显示 |
+| 拒绝写入 | 构造与正常轮次一致的完整事件流 `step/start → user/message → assistant/message(拒绝语) → step/end`（携带 `turn`/`step` 坐标与必填的 `stream: []`），UI 正常显示 |
 | 拦截范围 | 仅 `source.kind === 'user'` 的真实用户输入 + 根 agent（子代理/Goal 注入不拦） |
 | 设置面板 | `webServer.register()` + `tapIndex()` 注入零依赖前端脚本 |
 | 配置持久化 | `$DSH_HOME/dsh-aiquit/config.json`（开关 + 阈值 + 当前库） |
 
-## ⚠️ v1.0.0 已知问题与修复
+## ⚠️ 已知问题与修复（v1.0.0 / v1.0.1 → v1.0.2）
 
-**v1.0.0 会在罢工（拒绝）时向会话写入不符合 DSH 事件契约的 `assistant/message`
-（缺少 `turn`/`step` 坐标，或 `message.content` 字段）。** 这类坏事件一旦写入就
-永久留在会话日志里，DSH 之后每次读取该会话历史都会抛异常：
+罢工写出的 `assistant/message` 必须逐字节满足 DSH 的会话事件契约。历史上漏过
+**两个互不相关的必填字段**，各自都会让该会话的历史**永久**加载失败：
+
+| 版本 | 缺失字段 | 崩溃点 |
+|---|---|---|
+| v1.0.0 | `turn` / `step`、`message.content` | 读历史时访问 `data.message.content.length`（dsh-session / dsh-client-connection / dsh-agent-loop / dsh-token-meter） |
+| v1.0.1 | `stream` | `dsh-token-meter` 的 `usageOf()` 在 `usage` 缺失时读 `event.data.stream`，由 `dsh-llm` 的 `lastAssistantStreamChunk()` 取 `.length` |
+
+两者的症状相同：
 
 ```
 历史加载失败：Cannot read properties of undefined (reading 'length')（gateway/internal）
 ```
 
-表现为**该会话历史完全不可见、对话直接作废**，且**升级插件无法修复已写入的坏
-事件**（新版本只保证不再产生新的坏事件）。
+会话历史完全不可见、对话直接作废，且**升级插件无法修复已写入的坏事件**
+（新版本只保证不再产生新的坏事件）。
 
-**v1.0.1 的修复内容**：
+**v1.0.2 的修复内容**：
 
-1. 拒绝时写入完整的 step 生命周期（`step/start → user/message →
-   assistant/message → step/end`）并携带 `turn`/`step` 坐标；
-2. 写入前校验所有消息契约，任何不合契约的消息或写入失败都改为放行
-   （fail-open），绝不写坏事件；
-3. 拒绝统一返回官方的 `{kind:'reject'}` 决策，不再依赖 agent-loop 内部状态。
+1. 事件的 `data` 补齐 `stream: []`（罢工没有模型流，空数组即语义正确）；
+2. 写入前校验**完整事件数据形状**（`turn`/`step` 为安全整数、`stream` 为数组、
+   `message.content` 为数组），任一不满足即 fail-open 放行——绝不写坏事件；
+3. 拒绝统一返回官方的 `{kind:'reject'}` 决策，不依赖 agent-loop 内部状态
+   （v1.0.1 已修，历史版本曾用 `{kind:'enter', messages:[]}` 技巧，在缺少对应
+   分支的 DSH 版本上会真的发起模型请求）。
 
 ### 修复已受损的会话
 
@@ -115,6 +122,10 @@ node scripts/repair-sessions.mjs --delete
 ```
 
 - 工具零依赖（Node ≥ 22.15 自带 zstd），会自动定位 `$DSH_HOME/sessions`；
+- 正确处理 DSH 写出的**带格式版本的多帧 zstd 日志**（`session.v3.jsonl.zstd` /
+  `session.v4.jsonl.zstd` …）：按帧边界逐帧解码——直接用 Node 的
+  `zstdDecompressSync` 只会解出第一帧并“成功”返回，从而给出误导性的“一切正常”；
+- 每个会话只检查 DSH 实际使用的**最高代数**日志，旧格式日志不会被误判；
 - 隔离目录：`$DSH_HOME/aiquit-repair/quarantine-<时间戳>/`；
 - 同时清理这些会话的投影缓存，避免会话列表里仍残留打不开的条目；
 - 处理完重启 `dsh web` 即可恢复会话列表。

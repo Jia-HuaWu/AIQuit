@@ -1,6 +1,6 @@
 {
   "name": "dsh-aiquit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AIQuit「爷不干了」—— DSH 罢工插件：AI 开工前静默评估工作量（1-10），超过罢工阈值即罢工，并从回答拒绝库随机挑一句回复用户",
   "keywords": [
     "dsh",
